@@ -38,14 +38,6 @@ usage(){
     echo "       -s: Silent output - No banner, no progress, only urls"
 }
 
-tnotify(){
-    # Follow this to find your token and chatid
-    # https://medium.com/@ManHay_Hong/how-to-create-a-telegram-bot-and-send-messages-with-python-4cf314d9fa3e
-    message=$1
-    token="CHANGEME"
-    chatid="CHANGEME"
-    curl -s -X POST https://api.telegram.org/bot$token/sendMessage -d chat_id=$chatid -d text="$message" >/dev/null
-}
 if [ $# -eq 0 ] || [ "$1" = "-h" ]
   then
     usage
@@ -74,7 +66,7 @@ domain=`echo "$1"| unfurl domain`
 if [ "$silent" = "false" ]; then
     echo "[*] Running GAU"
 fi
-echo "$target" | gau | unfurl format "%s://%d%:%P%p" | grep -iE "\.js$" | sort -u > $TMPDIR/gaujs.txt
+echo "$target" | gau | unfurl format "%s://%d%:%P%p" | grep -iE "\.js$" | sort -u | anew $TMPDIR/gaujs.txt
 gaucount="$(wc -l $TMPDIR/gaujs.txt | sed -e 's/^[[:space:]]*//' | cut -d " " -f 1)"
 if [ "$silent" = "false" ]; then
     echo "[+] GAU found $gaucount scripts!"
@@ -83,15 +75,15 @@ fi
 if [ "$silent" = "false" ]; then
     echo "[*] Running hakrawler"
 fi
-hakrawler -js -url $target -plain -depth 2 -scope strict -insecure > $TMPDIR/hakrawl1.txt
-cat $TMPDIR/hakrawl1.txt| unfurl format "%s://%d%:%P%p" | grep -iE "\.js$" | sort -u > $TMPDIR/hakrawler.txt
+echo $target | hakrawler -insecure --subs -timeout 5 | anew $TMPDIR/hakrawl1.txt
+cat $TMPDIR/hakrawl1.txt| unfurl format "%s://%d%:%P%p" | grep -iE "\.js$" | sort -u | anew $TMPDIR/hakrawler.txt
 hakcount="$(wc -l $TMPDIR/hakrawler.txt | sed -e 's/^[[:space:]]*//' | cut -d " " -f 1)"
 if [ "$silent" = "false" ]; then
     echo "[+] HAKRAWLER found $hakcount scripts!"
 fi
 
-cat $TMPDIR/gaujs.txt $TMPDIR/hakrawler.txt | sort -u > $TMPDIR/gauhak.txt
-cat $TMPDIR/gauhak.txt | unfurl format "%s://%d%:%P%p" | grep "\.js$" | rev | cut -d "/" -f2- | rev | sort -u > $TMPDIR/jsdirs.txt
+cat $TMPDIR/gaujs.txt $TMPDIR/hakrawler.txt | sort -u | anew $TMPDIR/gauhak.txt
+cat $TMPDIR/gauhak.txt | unfurl format "%s://%d%:%P%p" | grep "\.js$" | rev | cut -d "/" -f2- | rev | sort -u | anew $TMPDIR/jsdirs.txt
 touch $TMPDIR/ffuf.txt
 jsdircount="$(wc -l $TMPDIR/jsdirs.txt | sed -e 's/^[[:space:]]*//' | cut -d " " -f 1)"
 if [ "$silent" = "false" ]; then
@@ -100,35 +92,37 @@ fi
 cat $jsdirwl | while read knowndir; do
     echo "$target/$knowndir" >> $TMPDIR/jsdirs.txt
 done
-cat $TMPDIR/jsdirs.txt | sort -u | while read jsdir; do
+# cat $TMPDIR/jsdirs.txt | sort -u | while read jsdir; do
 
-    if [ "$silent" = "false" ]; then
-        echo "[*] Running FFUF on $jsdir/"
-    fi
-    # for more thorough, add .min.js,.common.js,.built.js,.chunk.js,.bundled.js,...
-    ffuf -w $wordlist -u $jsdir/FUZZ -e .js,.min.js -mc 200,304 -o $TMPDIR/ffuf.json -s -t 100 > /dev/null
-    cat $TMPDIR/ffuf.json | jq -r ".results[].url" | grep "\.js" | unfurl format "%s://%d%:%P%p" | grep -iE "\.js$" | sort -u >$TMPDIR/ffuf_tmp.txt
-    cat $TMPDIR/ffuf_tmp.txt >> $TMPDIR/ffuf.txt
-    ffuftmpcount="$(wc -l $TMPDIR/ffuf_tmp.txt | sed -e 's/^[[:space:]]*//' | cut -d " " -f 1)"
-    if [ "$silent" = "false" ]; then
-        echo "[+] FFUF found $ffuftmpcount scripts in $jsdir/ !"
-    fi
-done
+#     if [ "$silent" = "false" ]; then
+#         echo "[*] Running FFUF on $jsdir/"
+#     fi
+#     # for more thorough, add .min.js,.common.js,.built.js,.chunk.js,.bundled.js,...
+#     ffuf -w $wordlist -u $jsdir/FUZZ -e .js,.min.js -mc 200,304 -o $TMPDIR/ffuf.json -s -t 100 > /dev/null
+#     cat $TMPDIR/ffuf.json | jq -r ".results[].url" | grep "\.js" | unfurl format "%s://%d%:%P%p" | grep -iE "\.js$" | sort -u >$TMPDIR/ffuf_tmp.txt
+#     cat $TMPDIR/ffuf_tmp.txt >> $TMPDIR/ffuf.txt
+#     ffuftmpcount="$(wc -l $TMPDIR/ffuf_tmp.txt | sed -e 's/^[[:space:]]*//' | cut -d " " -f 1)"
+#     if [ "$silent" = "false" ]; then
+#         echo "[+] FFUF found $ffuftmpcount scripts in $jsdir/ !"
+#     fi
+# done
 #echo "[*] Running initial LinkFinder"
 #python3 /opt/LinkFinder/linkfinder.py -d -i $target -o cli >> linkfinder.txt
 
 
-cat $TMPDIR/gauhak.txt $TMPDIR/ffuf.txt | grep "\.js" | grep -v "Running against:" |sort -u > $TMPDIR/results/scripts-$domain.txt
+cat $TMPDIR/gauhak.txt $TMPDIR/ffuf.txt | grep "\.js" | grep -v "Running against:" | sort -u | anew $TMPDIR/results/scripts-$domain.txt
 linecount="$(wc -l $TMPDIR/results/scripts-$domain.txt | sed -e 's/^[[:space:]]*//' | cut -d " " -f 1)"
 if [ "$silent" = "false" ]; then
     echo "[+] Checking Script Responsiveness of $linecount scripts.."
 fi
-cat $TMPDIR/results/scripts-$domain.txt | httpx -status-code -silent -no-color | grep -E '\[200\]$' | cut -d " " -f1 | tee -a $TMPDIR/results/scripts-200-$domain.txt
+cat $TMPDIR/results/scripts-$domain.txt | httpx -status-code -silent -no-color | grep -E '\[200\]$' | cut -d " " -f1 | anew $TMPDIR/results/scripts-200-$domain.txt
 responsivecount="$(wc -l $TMPDIR/results/scripts-200-$domain.txt | sed -e 's/^[[:space:]]*//' | cut -d " " -f 1)"
 
-tnotify "Scripthunter on $target done. $linecount ($responsivecount responsive) script files found"
+echo "Scripthunter on $target done. $linecount ($responsivecount responsive) script files found" | notify -id crawl
+notify -data $TMPDIR/results/scripts-200-$domain.txt --bulk -id crawl
 if [ "$silent" = "false" ]; then
     echo "[+] All Done!"
+    echo "[+] Result in $TMPDIR/results/scripts-200-$domain.txt"
     echo "[+] Found total of $linecount ($responsivecount responsive) scripts!"
 fi
 
