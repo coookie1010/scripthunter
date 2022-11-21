@@ -92,23 +92,22 @@ fi
 cat $jsdirwl | while read knowndir; do
     echo "$target/$knowndir" >> $TMPDIR/jsdirs.txt
 done
-# cat $TMPDIR/jsdirs.txt | sort -u | while read jsdir; do
+cat $TMPDIR/jsdirs.txt | sort -u | while read jsdir; do
 
-#     if [ "$silent" = "false" ]; then
-#         echo "[*] Running FFUF on $jsdir/"
-#     fi
-#     # for more thorough, add .min.js,.common.js,.built.js,.chunk.js,.bundled.js,...
-#     ffuf -w $wordlist -u $jsdir/FUZZ -e .js,.min.js -mc 200,304 -o $TMPDIR/ffuf.json -s -t 100 > /dev/null
-#     cat $TMPDIR/ffuf.json | jq -r ".results[].url" | grep "\.js" | unfurl format "%s://%d%:%P%p" | grep -iE "\.js$" | sort -u >$TMPDIR/ffuf_tmp.txt
-#     cat $TMPDIR/ffuf_tmp.txt >> $TMPDIR/ffuf.txt
-#     ffuftmpcount="$(wc -l $TMPDIR/ffuf_tmp.txt | sed -e 's/^[[:space:]]*//' | cut -d " " -f 1)"
-#     if [ "$silent" = "false" ]; then
-#         echo "[+] FFUF found $ffuftmpcount scripts in $jsdir/ !"
-#     fi
-# done
+    if [ "$silent" = "false" ]; then
+        echo "[*] Running FFUF on $jsdir/"
+    fi
+    # for more thorough, add .min.js,.common.js,.built.js,.chunk.js,.bundled.js,...
+    ffuf -w $wordlist -u $jsdir/FUZZ -e .js,.min.js -mc 200,304 -o $TMPDIR/ffuf.json -s -t 100 > /dev/null
+    cat $TMPDIR/ffuf.json | jq -r ".results[].url" | grep "\.js" | unfurl format "%s://%d%:%P%p" | grep -iE "\.js$" | sort -u | anew $TMPDIR/ffuf_tmp.txt
+    cat $TMPDIR/ffuf_tmp.txt >> $TMPDIR/ffuf.txt
+    ffuftmpcount="$(wc -l $TMPDIR/ffuf_tmp.txt | sed -e 's/^[[:space:]]*//' | cut -d " " -f 1)"
+    if [ "$silent" = "false" ]; then
+        echo "[+] FFUF found $ffuftmpcount scripts in $jsdir/ !"
+    fi
+done
 #echo "[*] Running initial LinkFinder"
 #python3 /opt/LinkFinder/linkfinder.py -d -i $target -o cli >> linkfinder.txt
-
 
 cat $TMPDIR/gauhak.txt $TMPDIR/ffuf.txt | grep "\.js" | grep -v "Running against:" | sort -u | anew $TMPDIR/results/scripts-$domain.txt
 linecount="$(wc -l $TMPDIR/results/scripts-$domain.txt | sed -e 's/^[[:space:]]*//' | cut -d " " -f 1)"

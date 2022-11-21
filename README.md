@@ -11,7 +11,8 @@ To install scripthunter, clone this repository. Scripthunter relies on a couple 
 - [ httpx ](https://github.com/projectdiscovery/httpx)
 - [ unfurl ](https://github.com/tomnomnom/unfurl)
 - [ anew ](https://github.com/tomnomnom/anew)
-- [ jq ]
+- [ ffuf ](https://github.com/ffuf/ffuf)
+- jq
 
 
 please make sure that as most of these tools are written in Go, that you have Go installed and configured properly. 
